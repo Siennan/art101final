@@ -1,0 +1,89 @@
+* {
+    box-sizing: border-box;
+  }
+  
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #222;
+    background: #f4f0e8; /* fallback in case no paper texture */
+  }
+  
+  /* p5 canvas behind everything */
+  canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 0;
+  }
+  
+  /* UI panel */
+  .ui {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    max-width: 280px;
+    padding: 0.9rem 1rem;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+  }
+  
+  h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    letter-spacing: 0.03em;
+  }
+  
+  .subtitle {
+    margin: 0.4rem 0 0.4rem;
+    font-size: 0.8rem;
+    opacity: 0.85;
+  }
+  
+  .hint {
+    margin: 0.2rem 0 0;
+    font-size: 0.7rem;
+    opacity: 0.7;
+  }
+  
+  /* Center overlay for start/game over text */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 5;
+  }
+  
+  .overlay.hidden {
+    display: none;
+  }
+  
+  .overlay-content {
+    text-align: center;
+    padding: 1rem 1.4rem;
+    background: rgba(255, 255, 255, 0.97);
+    border-radius: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.25);
+  }
+  
+  .overlay h2 {
+    margin: 0 0 0.3rem;
+    font-size: 1.3rem;
+  }
+  
+  .overlay p {
+    margin: 0.15rem 0;
+    font-size: 0.8rem;
+    opacity: 0.9;
+  }
+  
+
+  
