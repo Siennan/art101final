@@ -235,13 +235,13 @@ function updatePlayers() {
     keyIsDown(SHIFT)      // charge key for Player 1
   );
   
-  // Player 2 controls (WASD) + charge on TAB
+  // Player 2 controls (WASD) + charge on SHIFT
   updatePlayer(player2,
     keyIsDown(65), // A
     keyIsDown(68), // D
     keyIsDown(87), // W
     keyIsDown(83), // S
-    keyIsDown(TAB) // charge key for Player 2
+    keyIsDown(SHIFT) // charge key for Player 2
   );
 }
 
@@ -653,7 +653,7 @@ function drawHUD() {
   textSize(12);
     text("P1: Arrow Keys, Charge = SHIFT", 20, height - 20);
     textAlign(RIGHT, BOTTOM);
-    text("P2: WASD, Charge = TAB", width - 20, height - 20);
+    text("P2: WASD, Charge = SHIFT", width - 20, height - 20);
   }
 }
 
@@ -684,7 +684,7 @@ function updateOverlay() {
       <p><strong>Player 1 (Blue):</strong> Arrow Keys</p>
       <p><strong>Player 2 (Red):</strong> WASD Keys</p>
       <p>Push your opponent off the edge to win!</p>
-      <p>Hold <strong>SHIFT</strong> (P1) or <strong>TAB</strong> (P2) to charge a stronger push.</p>
+      <p>Hold <strong>SHIFT</strong> to charge a stronger push (both players).</p>
       <p style="margin-top:0.4rem;opacity:0.8;"><strong>Press SPACE to start.</strong></p>
     `;
   } else if (gameState === "gameover") {
