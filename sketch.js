@@ -60,16 +60,16 @@ function preload() {
 }
 
 function setup() {
-  // Slightly smaller canvas so the action feels more zoomed-in
-  createCanvas(800, 600);
-
+  // Canvas fits to screen at all times
+  createCanvas(windowWidth, windowHeight);
+  
   overlayDiv = document.getElementById("overlay");
   resetGame();
   updateOverlay();
 }
 
 function windowResized() {
-  resizeCanvas(800, 600);
+  resizeCanvas(windowWidth, windowHeight);
   resetGame();
 }
 
@@ -128,13 +128,13 @@ function resetGame() {
     h: PLATFORM_HEIGHT
   };
   
-  // Player 1 (left side, uses arrow keys) – BLUE
+  // Player 1 (left side, uses arrow keys) – RED
   player1 = {
     x: width / 2 - 100,
     y: height / 2,
     vx: 0,
     vy: 0,
-    color: [100, 150, 255], // Blue
+    color: [255, 100, 100], // Red
     facing: 1, // 1 = right, -1 = left
     recoilX: 0,
     recoilY: 0,
@@ -142,13 +142,13 @@ function resetGame() {
     charge: 0    // 0–1 charge meter
   };
   
-  // Player 2 (right side, uses WASD) – RED
+  // Player 2 (right side, uses WASD) – BLUE
   player2 = {
     x: width / 2 + 100,
     y: height / 2,
     vx: 0,
     vy: 0,
-    color: [255, 100, 100], // Red
+    color: [100, 150, 255], // Blue
     facing: -1,
     recoilX: 0,
     recoilY: 0,
@@ -226,16 +226,16 @@ function isOnPlatform(player) {
 // ---------------- PLAYERS ----------------
 
 function updatePlayers() {
-  // Player 1 controls (Arrow keys) + charge on R
+  // Player 1 (Red) controls: Arrow keys + Shift for charge
   updatePlayer(player1,
     keyIsDown(LEFT_ARROW),
     keyIsDown(RIGHT_ARROW),
     keyIsDown(UP_ARROW),
     keyIsDown(DOWN_ARROW),
-    keyIsDown(82)        // 'R' key for Player 1 charge
+    keyIsDown(SHIFT)        // Shift key for Player 1 charge
   );
   
-  // Player 2 controls (WASD) + charge on R
+  // Player 2 (Blue) controls: WASD + R for charge
   updatePlayer(player2,
     keyIsDown(65), // A
     keyIsDown(68), // D
@@ -651,9 +651,9 @@ function drawHUD() {
     fill(60, 60, 60, 150);
     textAlign(LEFT, BOTTOM);
     textSize(12);
-    text("P1: Arrow Keys, Charge = R", 20, height - 20);
+    text("P1 (Red): Arrow Keys, Charge = SHIFT", 20, height - 20);
     textAlign(RIGHT, BOTTOM);
-    text("P2: WASD, Charge = R", width - 20, height - 20);
+    text("P2 (Blue): WASD, Charge = R", width - 20, height - 20);
   }
 }
 
@@ -681,15 +681,15 @@ function updateOverlay() {
   if (gameState === "start") {
     container.innerHTML = `
       <h2>Push-Off Battle!</h2>
-      <p><strong>Player 1 (Blue):</strong> Arrow Keys</p>
-      <p><strong>Player 2 (Red):</strong> WASD Keys</p>
+      <p><strong>Player 1 (Red):</strong> Arrow Keys, Charge = SHIFT</p>
+      <p><strong>Player 2 (Blue):</strong> WASD Keys, Charge = R</p>
       <p>Push your opponent off the edge to win!</p>
-      <p>Hold <strong>R</strong> to charge a stronger push (both players).</p>
+      <p>Hold your charge key to build up a stronger push!</p>
       <p style="margin-top:0.4rem;opacity:0.8;"><strong>Press SPACE to start.</strong></p>
     `;
   } else if (gameState === "gameover") {
-    // Match the colors shown elsewhere: Player 1 = Blue, Player 2 = Red
-    const winnerColor = winner === 1 ? "Blue" : "Red";
+    // Match the colors: Player 1 = Red, Player 2 = Blue
+    const winnerColor = winner === 1 ? "Red" : "Blue";
     const winnerNum = winner === 1 ? "1" : "2";
     container.innerHTML = `
       <h2>${winnerColor} Player Wins!</h2>
