@@ -226,22 +226,22 @@ function isOnPlatform(player) {
 // ---------------- PLAYERS ----------------
 
 function updatePlayers() {
-  // Player 1 controls (Arrow keys) + charge on SHIFT
+  // Player 1 controls (Arrow keys) + charge on R
   updatePlayer(player1,
     keyIsDown(LEFT_ARROW),
     keyIsDown(RIGHT_ARROW),
     keyIsDown(UP_ARROW),
     keyIsDown(DOWN_ARROW),
-    keyIsDown(SHIFT)      // charge key for Player 1
+    keyIsDown(82)        // 'R' key for Player 1 charge
   );
   
-  // Player 2 controls (WASD) + charge on SHIFT
+  // Player 2 controls (WASD) + charge on R
   updatePlayer(player2,
     keyIsDown(65), // A
     keyIsDown(68), // D
     keyIsDown(87), // W
     keyIsDown(83), // S
-    keyIsDown(SHIFT) // charge key for Player 2
+    keyIsDown(82) // R key for charge (Player 2)
   );
 }
 
@@ -650,10 +650,10 @@ function drawHUD() {
     // Control indicators
     fill(60, 60, 60, 150);
     textAlign(LEFT, BOTTOM);
-  textSize(12);
-    text("P1: Arrow Keys, Charge = SHIFT", 20, height - 20);
+    textSize(12);
+    text("P1: Arrow Keys, Charge = R", 20, height - 20);
     textAlign(RIGHT, BOTTOM);
-    text("P2: WASD, Charge = SHIFT", width - 20, height - 20);
+    text("P2: WASD, Charge = R", width - 20, height - 20);
   }
 }
 
@@ -684,7 +684,7 @@ function updateOverlay() {
       <p><strong>Player 1 (Blue):</strong> Arrow Keys</p>
       <p><strong>Player 2 (Red):</strong> WASD Keys</p>
       <p>Push your opponent off the edge to win!</p>
-      <p>Hold <strong>SHIFT</strong> to charge a stronger push (both players).</p>
+      <p>Hold <strong>R</strong> to charge a stronger push (both players).</p>
       <p style="margin-top:0.4rem;opacity:0.8;"><strong>Press SPACE to start.</strong></p>
     `;
   } else if (gameState === "gameover") {
