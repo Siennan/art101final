@@ -11,8 +11,8 @@ let RECOIL_DAMPING = 0.7; // How much recoil is applied
 
 // Sprite animation (Piskel)
 // You exported each player from Piskel as a horizontal spritesheet:
-//   assets/player_1.png  -> Player 1 (blue or red, 5 frames, 15x15 each)
-//   assets/player_2.png  -> Player 2
+//   assets/New Piskel (1).png  -> One player (5 frames, 15x15 each)
+//   assets/New Piskel (2).png  -> The other player
 let player1Sheet, player2Sheet;
 const FRAME_W = 15;       // Piskel frame width in px
 const FRAME_H = 15;       // Piskel frame height in px
@@ -40,8 +40,9 @@ let paperImg;
 
 function preload() {
   // Load your 5-frame, 15x15 Piskel spritesheets for each player
-  player1Sheet = loadImage("assets/player_1.png", () => {}, () => { player1Sheet = null; });
-  player2Sheet = loadImage("assets/player_2.png", () => {}, () => { player2Sheet = null; });
+  // NOTE: these filenames must match exactly what’s in the assets folder
+  player1Sheet = loadImage("assets/New Piskel (1).png", () => {}, () => { player1Sheet = null; });
+  player2Sheet = loadImage("assets/New Piskel (2).png", () => {}, () => { player2Sheet = null; });
   paperImg = loadImage("assets/paper-texture.png", () => {}, () => { paperImg = null; });
 }
 
