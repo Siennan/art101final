@@ -6,8 +6,14 @@ let PLAYER_SIZE = 40;
 let PLAYER_SPEED = 3;
 let PUSH_FORCE = 0.8;
 let FRICTION = 0.85;
-let RECOIL_FORCE = 2.5; // Force of recoil when players collide
-let RECOIL_DAMPING = 0.7; // How much recoil is applied
+let RECOIL_FORCE = 1.2; // Base force of recoil when players collide (reduced)
+let RECOIL_DAMPING = 0.5; // How much recoil is applied over time (reduced)
+
+// Charge-up push mechanic
+const MAX_CHARGE = 1.0;          // Maximum stored charge
+const CHARGE_RATE = 0.02;        // How fast charge builds per frame while charging
+const CHARGE_DECAY = 0.02;       // How fast charge decays when not charging
+const CHARGE_FORCE_BOOST = 2.5;  // How much extra force a full charge adds
 
 // Sprite animation (Piskel)
 // You exported each player from Piskel as a horizontal spritesheet:
@@ -22,6 +28,13 @@ const ANIM_SPEED = 6;     // lower = slower animation, higher = faster
 // Collision tracking
 let lastCollisionFrame = 0;
 let collisionCooldown = 10; // Frames before another collision can register
+
+// Grass obstacles
+let grassBlocks = [];
+const GRASS_BLOCK_SIZE = 40;
+const GRASS_POP_INTERVAL = 90;   // frames between spawns
+const GRASS_LIFETIME = 240;      // how long a block stays up
+const MAX_GRASS_BLOCKS = 6;
 
 // Platform
 let platform;
@@ -47,48 +60,61 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(1200, 800);
-  
+  // Slightly smaller canvas so the action feels more zoomed-in
+  createCanvas(800, 600);
+
   overlayDiv = document.getElementById("overlay");
   resetGame();
   updateOverlay();
 }
 
 function windowResized() {
-  resizeCanvas(1200, 800);
+  resizeCanvas(800, 600);
   resetGame();
 }
 
 function draw() {
   drawBackground();
-  
+
   if (gameState === "play") {
     updateGame();
   } else {
-    // Draw static view
-    drawPlatform();
+    // Draw static view (no central platform, just arena)
     drawPlayers();
   }
-  
+
   drawHUD();
 }
 
 // ---------------- BACKGROUND ----------------
 
 function drawBackground() {
-  if (paperImg) {
-    image(paperImg, 0, 0, width, height);
-  } else {
-    background(240, 240, 250);
-  }
-  
-  // Danger zone indicators (edges)
-  fill(255, 100, 100, 100);
+  // Cute pixel grass background
+  background(80, 170, 90);
+
+  // Pixelated grass tiles
+  const tileSize = 8;
   noStroke();
-  rect(0, 0, 50, height);
-  rect(width - 50, 0, 50, height);
-  rect(0, 0, width, 50);
-  rect(0, height - 50, width, 50);
+  for (let y = 0; y < height; y += tileSize) {
+    for (let x = 0; x < width; x += tileSize) {
+      const n = noise(x * 0.02, y * 0.02);
+      const g = 140 + n * 60;
+      fill(60, g, 60);
+      rect(x, y, tileSize, tileSize);
+    }
+  }
+
+  // Slight darker band at the bottom like thicker grass
+  fill(40, 120, 50, 180);
+  rect(0, height - 60, width, 60);
+
+  // Subtle danger zone indicators (edges)
+  fill(255, 200, 200, 130);
+  const edge = 24;
+  rect(0, 0, edge, height);
+  rect(width - edge, 0, edge, height);
+  rect(0, 0, width, edge);
+  rect(0, height - edge, width, edge);
 }
 
 // ---------------- GAME SETUP ----------------
@@ -102,33 +128,36 @@ function resetGame() {
     h: PLATFORM_HEIGHT
   };
   
-  // Player 1 (left side, uses arrow keys)
+  // Player 1 (left side, uses arrow keys) – BLUE
   player1 = {
-    x: platform.x - 100,
-    y: platform.y - PLAYER_SIZE / 2,
-    vx: 0,
-    vy: 0,
-    color: [255, 100, 100], // Red
-    facing: 1, // 1 = right, -1 = left
-    recoilX: 0,
-    recoilY: 0,
-    inRecoil: false
-  };
-  
-  // Player 2 (right side, uses WASD)
-  player2 = {
-    x: platform.x + 100,
-    y: platform.y - PLAYER_SIZE / 2,
+    x: width / 2 - 100,
+    y: height / 2,
     vx: 0,
     vy: 0,
     color: [100, 150, 255], // Blue
+    facing: 1, // 1 = right, -1 = left
+    recoilX: 0,
+    recoilY: 0,
+    inRecoil: false,
+    charge: 0    // 0–1 charge meter
+  };
+  
+  // Player 2 (right side, uses WASD) – RED
+  player2 = {
+    x: width / 2 + 100,
+    y: height / 2,
+    vx: 0,
+    vy: 0,
+    color: [255, 100, 100], // Red
     facing: -1,
     recoilX: 0,
     recoilY: 0,
-    inRecoil: false
+    inRecoil: false,
+    charge: 0
   };
   
   winner = null;
+  grassBlocks = [];
 }
 
 function startGame() {
@@ -154,7 +183,9 @@ function updateGame() {
   updatePlayers();
   checkCollisions();
   checkBoundaries();
-  drawPlatform();
+  updateGrassBlocks();
+  // No platform now, just open arena with screen edges + popping grass
+  drawGrassBlocks();
   drawPlayers();
 }
 
@@ -195,24 +226,26 @@ function isOnPlatform(player) {
 // ---------------- PLAYERS ----------------
 
 function updatePlayers() {
-  // Player 1 controls (Arrow keys)
+  // Player 1 controls (Arrow keys) + charge on SHIFT
   updatePlayer(player1,
     keyIsDown(LEFT_ARROW),
     keyIsDown(RIGHT_ARROW),
     keyIsDown(UP_ARROW),
-    keyIsDown(DOWN_ARROW)
+    keyIsDown(DOWN_ARROW),
+    keyIsDown(SHIFT)      // charge key for Player 1
   );
   
-  // Player 2 controls (WASD)
+  // Player 2 controls (WASD) + charge on TAB
   updatePlayer(player2,
     keyIsDown(65), // A
     keyIsDown(68), // D
     keyIsDown(87), // W
-    keyIsDown(83)  // S
+    keyIsDown(83), // S
+    keyIsDown(TAB) // charge key for Player 2
   );
 }
 
-function updatePlayer(p, left, right, up, down) {
+function updatePlayer(p, left, right, up, down, chargeKey) {
   // Apply recoil first (reduces over time)
   p.recoilX *= 0.85;
   p.recoilY *= 0.85;
@@ -238,6 +271,16 @@ function updatePlayer(p, left, right, up, down) {
     dx *= 0.707;
     dy *= 0.707;
   }
+
+  // Charge-up mechanic: hold your charge key while mostly idle to build charge
+  const speedBefore = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+  const tryingToCharge = chargeKey && !left && !right && !up && !down && speedBefore < 1 && !p.inRecoil;
+  if (tryingToCharge) {
+    p.charge = Math.min(MAX_CHARGE, p.charge + CHARGE_RATE);
+  } else {
+    // Let charge slowly fade when not charging
+    p.charge = Math.max(0, p.charge - CHARGE_DECAY);
+  }
   
   // Apply movement (reduced during recoil)
   p.vx += dx * PLAYER_SPEED * 0.3 * movementMultiplier;
@@ -260,19 +303,119 @@ function updatePlayer(p, left, right, up, down) {
     p.inRecoil = false;
   }
   
-  // Keep player on platform (if on platform)
-  if (isOnPlatform(p)) {
-    // Constrain to platform bounds
-    p.x = constrain(p.x, platform.x - platform.w/2 + PLAYER_SIZE/2, 
-                           platform.x + platform.w/2 - PLAYER_SIZE/2);
-    p.y = constrain(p.y, platform.y - platform.h/2 - PLAYER_SIZE/2 + 5,
-                           platform.y + platform.h/2 - PLAYER_SIZE/2 - 5);
+  // Grass block collisions: treat as solid obstacles
+  for (let b of grassBlocks) {
+    if (!b.active) continue;
+    const half = b.size / 2;
+    const leftEdge = b.x - half;
+    const rightEdge = b.x + half;
+    const topEdge = b.y - half;
+    const bottomEdge = b.y + half;
+
+    if (p.x + PLAYER_SIZE / 2 > leftEdge &&
+        p.x - PLAYER_SIZE / 2 < rightEdge &&
+        p.y + PLAYER_SIZE / 2 > topEdge &&
+        p.y - PLAYER_SIZE / 2 < bottomEdge) {
+
+      // decide smallest push-out direction
+      const overlapRight = rightEdge - (p.x - PLAYER_SIZE / 2);
+      const overlapLeft = (p.x + PLAYER_SIZE / 2) - leftEdge;
+      const overlapDown = bottomEdge - (p.y - PLAYER_SIZE / 2);
+      const overlapUp = (p.y + PLAYER_SIZE / 2) - topEdge;
+      const minOverlap = Math.min(overlapRight, overlapLeft, overlapDown, overlapUp);
+
+      if (minOverlap === overlapRight) {
+        p.x += overlapRight;
+        p.vx = max(p.vx, 0);
+      } else if (minOverlap === overlapLeft) {
+        p.x -= overlapLeft;
+        p.vx = min(p.vx, 0);
+      } else if (minOverlap === overlapDown) {
+        p.y += overlapDown;
+        p.vy = max(p.vy, 0);
+  } else {
+        p.y -= overlapUp;
+        p.vy = min(p.vy, 0);
+      }
+    }
   }
+
+  // No platform constraints: players can move freely and can be knocked off-screen
 }
 
 function drawPlayers() {
   drawPlayer(player1, 1);
   drawPlayer(player2, 2);
+}
+
+// ---------------- GRASS BLOCKS (OBSTACLES) ----------------
+
+function spawnGrassBlock() {
+  if (grassBlocks.length >= MAX_GRASS_BLOCKS) return;
+
+  const margin = 80;
+  const x = random(margin, width - margin);
+  const y = random(margin, height - margin);
+
+  grassBlocks.push({
+    x,
+    y,
+    size: GRASS_BLOCK_SIZE,
+    timer: GRASS_LIFETIME,
+    phase: random(TWO_PI), // for cute sway animation
+    active: true
+  });
+}
+
+function updateGrassBlocks() {
+  // spawn new blocks periodically
+  if (frameCount % GRASS_POP_INTERVAL === 0) {
+    spawnGrassBlock();
+  }
+
+  for (let b of grassBlocks) {
+    if (!b.active) continue;
+    b.timer--;
+    if (b.timer <= 0) {
+      b.active = false;
+    }
+  }
+
+  // remove inactive blocks
+  grassBlocks = grassBlocks.filter(b => b.active);
+}
+
+function drawGrassBlocks() {
+  for (let b of grassBlocks) {
+    push();
+    translate(b.x, b.y);
+
+    // simple pop-up animation based on remaining life
+    const lifeRatio = b.timer / GRASS_LIFETIME;
+    const popScale = constrain(1.2 - abs(lifeRatio - 0.5) * 2, 0, 1); // grows then shrinks
+
+    const h = b.size * popScale;
+    const w = b.size * popScale;
+
+    // little pixel grass block
+      noStroke();
+    fill(40, 120, 50);
+      rectMode(CENTER);
+    rect(0, 0, w, h, 4);
+
+    // lighter top
+    fill(90, 200, 90);
+    rect(0, -h * 0.15, w * 0.9, h * 0.3, 3);
+
+    // pixel details
+    fill(60, 150, 70);
+    const px = w * 0.4;
+    const py = h * 0.3;
+    rect(-px * 0.4, py * 0.1, 4, 4);
+    rect(px * 0.2, -py * 0.2, 4, 4);
+
+    pop();
+  }
 }
 
 function drawPlayer(p, playerNum) {
@@ -296,6 +439,15 @@ function drawPlayer(p, playerNum) {
     noStroke();
     ellipse(0, 0, PLAYER_SIZE * 1.3, PLAYER_SIZE * 1.3);
   }
+
+  // Charge visual effect: small ring that grows with charge
+  if (p.charge > 0.05) {
+    const chargeRadius = PLAYER_SIZE * (1.1 + p.charge * 0.8);
+    noFill();
+    stroke(255, 255, 0, 150);
+    strokeWeight(2);
+    ellipse(0, 0, chargeRadius, chargeRadius);
+  }
   
   // Player body (Piskel sprite animation)
   const sheet = playerNum === 1 ? player1Sheet : player2Sheet;
@@ -303,18 +455,23 @@ function drawPlayer(p, playerNum) {
     // Decide whether we're moving or idle
     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
     let frameIndex;
-    if (speed < 0.3) {
-      // Idle: show first frame
+    if (speed < 0.3 && p.charge < 0.1) {
+      // Idle (and not charging): show first frame
       frameIndex = 0;
     } else {
-      // Moving: cycle through all frames
+      // Moving or charging: cycle through all frames
       frameIndex = Math.floor(frameCount / ANIM_SPEED) % PLAYER_FRAMES;
     }
     const sx = frameIndex * FRAME_W;
     const sy = 0; // all frames on first row
 
-    // Flip horizontally when facing left
-    if (p.facing === -1) {
+    // Flip horizontally based on facing, but mirror player 2 so they default looking left
+    // Player 1: flip when facing left
+    // Player 2: flip when facing right
+    const shouldFlip =
+      (playerNum === 1 && p.facing === -1) ||
+      (playerNum === 2 && p.facing === 1);
+    if (shouldFlip) {
       scale(-1, 1);
     }
 
@@ -345,18 +502,18 @@ function drawPlayer(p, playerNum) {
     text(playerNum, 0, 0);
   }
   
-  drawingContext.shadowBlur = 0;
-  
+      drawingContext.shadowBlur = 0;
+
   // Direction indicator (small arrow)
   fill(p.color[0], p.color[1], p.color[2], 200);
   noStroke();
   if (p.facing === 1) {
     triangle(PLAYER_SIZE/2 - 5, 0, PLAYER_SIZE/2 - 15, -8, PLAYER_SIZE/2 - 15, 8);
-  } else {
+    } else {
     triangle(-PLAYER_SIZE/2 + 5, 0, -PLAYER_SIZE/2 + 15, -8, -PLAYER_SIZE/2 + 15, 8);
-  }
-  
-  pop();
+    }
+
+    pop();
 }
 
 // ---------------- COLLISIONS ----------------
@@ -394,8 +551,14 @@ function checkCollisions() {
     const player2Speed = sqrt(player2.vx * player2.vx + player2.vy * player2.vy);
     
     // Recoil force is based on both players' momentum
-    const recoil1 = RECOIL_FORCE * (player2Speed + relativeSpeed * 0.5) * RECOIL_DAMPING;
-    const recoil2 = RECOIL_FORCE * (player1Speed + relativeSpeed * 0.5) * RECOIL_DAMPING;
+    let recoil1 = RECOIL_FORCE * (player2Speed + relativeSpeed * 0.5) * RECOIL_DAMPING;
+    let recoil2 = RECOIL_FORCE * (player1Speed + relativeSpeed * 0.5) * RECOIL_DAMPING;
+
+    // Apply charge boost: whoever has more charge gets a stronger push
+    const chargeBoost1 = 1 + player1.charge * CHARGE_FORCE_BOOST;
+    const chargeBoost2 = 1 + player2.charge * CHARGE_FORCE_BOOST;
+    recoil1 *= chargeBoost2; // recoil on P1 caused by P2's charge
+    recoil2 *= chargeBoost1; // recoil on P2 caused by P1's charge
     
     // Apply strong recoil in opposite directions
     // Player 1 gets pushed back (negative angle direction)
@@ -413,6 +576,10 @@ function checkCollisions() {
     player1.vy = -sin(angle) * recoil1 * 0.5;
     player2.vx = cos(angle) * recoil2 * 0.5;
     player2.vy = sin(angle) * recoil2 * 0.5;
+
+    // After a hit, both players lose their stored charge
+    player1.charge = 0;
+    player2.charge = 0;
     
     // Update collision frame
     lastCollisionFrame = frameCount;
@@ -465,28 +632,28 @@ function drawHUD() {
   textSize(20);
   noStroke();
   
-  // Player 1 score
+  // Player 1 score (Blue, Arrow keys)
   fill(player1.color[0], player1.color[1], player1.color[2]);
-  text(`Player 1: ${player1Wins}`, 20, 20);
+  text(`P1 (Arrows): ${player1Wins}`, 20, 20);
   
-  // Player 2 score
+  // Player 2 score (Red, WASD)
   fill(player2.color[0], player2.color[1], player2.color[2]);
-  text(`Player 2: ${player2Wins}`, width - 150, 20);
+  text(`P2 (WASD): ${player2Wins}`, width - 170, 20);
   
   // Controls hint
   if (gameState === "play") {
     fill(100, 100, 100, 180);
-    textSize(14);
+  textSize(14);
     textAlign(CENTER, BOTTOM);
     text("Push your opponent off the platform!", width/2, height - 20);
     
     // Control indicators
     fill(60, 60, 60, 150);
     textAlign(LEFT, BOTTOM);
-    textSize(12);
-    text("P1: Arrow Keys", 20, height - 20);
+  textSize(12);
+    text("P1: Arrow Keys, Charge = SHIFT", 20, height - 20);
     textAlign(RIGHT, BOTTOM);
-    text("P2: WASD", width - 20, height - 20);
+    text("P2: WASD, Charge = TAB", width - 20, height - 20);
   }
 }
 
@@ -507,21 +674,22 @@ function updateOverlay() {
     overlayDiv.classList.add("hidden");
     return;
   }
-  
+
   const container = document.createElement("div");
   container.className = "overlay-content";
-  
+
   if (gameState === "start") {
     container.innerHTML = `
       <h2>Push-Off Battle!</h2>
-      <p><strong>Player 1 (Red):</strong> Arrow Keys</p>
-      <p><strong>Player 2 (Blue):</strong> WASD Keys</p>
-      <p>Push your opponent off the platform to win!</p>
-      <p>Use movement to build momentum and push harder.</p>
+      <p><strong>Player 1 (Blue):</strong> Arrow Keys</p>
+      <p><strong>Player 2 (Red):</strong> WASD Keys</p>
+      <p>Push your opponent off the edge to win!</p>
+      <p>Hold <strong>SHIFT</strong> (P1) or <strong>TAB</strong> (P2) to charge a stronger push.</p>
       <p style="margin-top:0.4rem;opacity:0.8;"><strong>Press SPACE to start.</strong></p>
     `;
   } else if (gameState === "gameover") {
-    const winnerColor = winner === 1 ? "Red" : "Blue";
+    // Match the colors shown elsewhere: Player 1 = Blue, Player 2 = Red
+    const winnerColor = winner === 1 ? "Blue" : "Red";
     const winnerNum = winner === 1 ? "1" : "2";
     container.innerHTML = `
       <h2>${winnerColor} Player Wins!</h2>
@@ -530,7 +698,7 @@ function updateOverlay() {
       <p style="margin-top:0.4rem;opacity:0.8;"><strong>Press SPACE to play again.</strong></p>
     `;
   }
-  
+
   overlayDiv.innerHTML = "";
   overlayDiv.appendChild(container);
   overlayDiv.classList.remove("hidden");
